@@ -1,0 +1,194 @@
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { connect } from "react-redux";
+import PropTypes from "prop-types";
+
+import Paper from "@material-ui/core/Paper";
+import {
+  FilteringState,
+  IntegratedFiltering,
+  SortingState,
+  IntegratedSorting,
+  PagingState,
+  IntegratedPaging,
+  SelectionState,
+  IntegratedSelection,
+  GroupingState,
+  IntegratedGrouping,
+  SearchState
+} from "@devexpress/dx-react-grid";
+import { GridExporter } from "@devexpress/dx-react-grid-export";
+import {
+  Grid,
+  ColumnChooser,
+  VirtualTable,
+  TableColumnResizing,
+  TableColumnVisibility,
+  TableHeaderRow,
+  TableFilterRow,
+  TableSelection,
+  TableGroupRow,
+  TableFixedColumns,
+  GroupingPanel,
+  DragDropProvider,
+  Toolbar,
+  PagingPanel,
+  ExportPanel,
+  SearchPanel
+} from "@devexpress/dx-react-grid-material-ui";
+import saveAs from "file-saver";
+
+import { loadEntityData } from "../../redux/actions/entityDataActions";
+
+const EntityDataComponent = ({ selectedEntity, loadEntityData, ...props }) => {
+  const [columns, setColumns] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [
+    tableColumnVisibilityColumnExtensions,
+    setTableColumnVisibilityColumnExtensions
+  ] = useState([]);
+  const [columnWidths, setColumnWidths] = useState([]);
+  const [leftColumns, setLeftColumns] = useState([]);
+  const [pageSizes] = useState([25, 50, 100]);
+  const [defaultHiddenColumnNames] = useState([]);
+  const [selection, setSelection] = useState([]);
+  const exporterRef = useRef(null);
+
+  const loadData = () => {
+    loadEntityData(selectedEntity).catch(error => {
+      alert("Loading entity data failed" + error);
+    });
+  };
+
+  useEffect(() => {
+    setColumns(props.columns);
+    setRows(props.rows);
+    setTableColumnVisibilityColumnExtensions(
+      props.tableColumnVisibilityColumnExtensions
+    );
+    setColumnWidths(props.columnWidths);
+    setLeftColumns(props.leftColumns);
+  }, [props.entityData]);
+
+  useEffect(() => {
+    if (selectedEntity !== "") loadData();
+  }, [selectedEntity]);
+
+  const startExport = useCallback(() => {
+    exporterRef.current.exportGrid();
+  }, [exporterRef]);
+
+  const onSave = workbook => {
+    workbook.xlsx.writeBuffer().then(buffer => {
+      saveAs(
+        new Blob([buffer], { type: "application/octet-stream" }),
+        "DataGrid.xlsx"
+      );
+    });
+  };
+
+  return (
+    <Paper>
+      <Grid rows={rows} columns={columns}>
+        <FilteringState defaultFilters={[]} />
+        <SortingState />
+        <SelectionState
+          selection={selection}
+          onSelectionChange={setSelection}
+        />
+        <GroupingState />
+        <PagingState defaultCurrentPage={0} pageSize={25} />
+        <SearchState defaultValue="" />
+        <IntegratedGrouping />
+        <IntegratedFiltering />
+        <IntegratedSorting />
+        <IntegratedPaging />
+        <IntegratedSelection />
+        <DragDropProvider />
+        <VirtualTable />
+        <TableColumnResizing
+          columnWidths={columnWidths}
+          onColumnWidthsChange={setColumnWidths}
+          resizingMode="nextColumn"
+        />
+        <TableHeaderRow showSortingControls={true} />
+        <PagingPanel pageSizes={pageSizes} />
+        <TableSelection selectByRowClick />
+        <TableColumnVisibility
+          defaultHiddenColumnNames={defaultHiddenColumnNames}
+          columnExtensions={tableColumnVisibilityColumnExtensions}
+        />
+        <Toolbar />
+        <GroupingPanel />
+        <SearchPanel />
+        <ColumnChooser />
+        <TableGroupRow />
+        <TableFilterRow />
+        <TableFixedColumns leftColumns={leftColumns} />
+        <ExportPanel startExport={startExport} />
+      </Grid>
+      <GridExporter
+        ref={exporterRef}
+        rows={rows}
+        columns={columns}
+        onSave={onSave}
+      />
+    </Paper>
+  );
+};
+
+EntityDataComponent.propTypes = {
+  columns: PropTypes.array.isRequired,
+  rows: PropTypes.array.isRequired,
+  tableColumnVisibilityColumnExtensions: PropTypes.array.isRequired,
+  columnWidths: PropTypes.array.isRequired,
+  leftColumns: PropTypes.array.isRequired,
+  entityData: PropTypes.array.isRequired,
+  selectedEntity: PropTypes.string.isRequired,
+  loadEntityData: PropTypes.func.isRequired
+};
+
+function mapStateToProps(state) {
+  let columns = state.entityData.length
+    ? Object.keys(state.entityData[0]).map(k => {
+        return { name: k, title: k };
+      })
+    : [];
+
+  let rows = state.entityData;
+  let tableColumnVisibilityColumnExtensions = state.entityData.length
+    ? [
+        {
+          columnName: Object.keys(state.entityData[0])[0],
+          togglingEnabled: false
+        }
+      ]
+    : [];
+
+  let columnWidths = state.entityData.length
+    ? Object.keys(state.entityData[0]).map(k => {
+        return { columnName: k, width: 200 };
+      })
+    : [];
+
+  let leftColumns = state.entityData.length
+    ? [Object.keys(state.entityData[0])[0]]
+    : [];
+  return {
+    columns,
+    rows,
+    tableColumnVisibilityColumnExtensions,
+    columnWidths,
+    leftColumns,
+    entityData: state.entityData,
+    selectedEntity: state.selectedEntity
+  };
+}
+
+const mapDispatchToProps = {
+  loadEntityData
+};
+
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(EntityDataComponent);
